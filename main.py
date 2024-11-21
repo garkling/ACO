@@ -71,8 +71,55 @@ def write_graph_file(filename: str, graph: Graph):
         writer.writerow([graph])
 
 
-def visualize_graph(graph: Graph):
-    pass
+def check_graph(graph:list[list[int, int, int]], start = 0) -> bool:
+    """
+    Checking graph connectivity using depth-first search.
+
+    The function analyzes the graph given by the adjacency matrix,
+    and determines whether all vertices can be reached
+    from one initial vertex.
+
+    Args:
+        graph (List[List[int]]): Graph adjacency matrix.
+            - Dimensionality: n x n, where n is the number of vertices
+
+        start (int, optional): The index of the starting vertex to search for.
+            Default is 0 (the first vertex in the graph).
+            Must be within [0, n-1].
+
+    Returns:
+        bool: Result of graph connectivity check.
+            - True: all vertices are reachable
+            - False: isolated vertices exist
+    >>> graph = [[-1, 5, 3, -1], [5, -1, -1, 2], [3, -1, -1, 4], [-1, 2, 4, -1]]
+    >>> check_graph(graph)
+    True
+    >>> graph = [[-1, 1, 1, -1], [1, -1, 1, -1], [1, 1, -1, -1], [-1, -1, -1, -1]]
+    >>> check_graph(graph)
+    False
+    >>> graph = [[-1, 1, 1, 1], [1, -1, 1, 1], [1, 1, -1, 1], [1, 1, 1, -1]]
+    >>> check_graph(graph)
+    True
+    >>> graph =[[-1, 1, -1, -1], [1, -1, 1, -1], [-1, 1, -1, 1], [-1, -1, 1, -1]]
+    >>> check_graph(graph)
+    True
+    >>> graph = [[-1, 1, -1, -1], [1, -1, -1, -1], [-1, -1, -1, 1], [-1, -1, 1, -1]]
+    >>> check_graph(graph)
+    False
+    """
+
+    n = len(graph)
+    visited = [False] * n
+
+    def dfs(vertex):
+        visited[vertex] = True
+        for neighbor in range(n):
+            if graph[vertex][neighbor] >= 0 and not visited[neighbor]:
+                dfs(neighbor)
+
+    dfs(start)
+    return all(visited)
+
 
 
 def main(graph_file, start_node, output_file):
@@ -97,4 +144,3 @@ if __name__ == "__main__":
     # args = parser.parse_args()
 
     # main(args.graph, args.start_node, args.output)
-
