@@ -7,7 +7,7 @@ import networkx as nx   # graph builder library
 Graph = dict
 
 
-def read_graph_file(filename: str) -> list[list[int, int, int]]:
+def read_graph_file(filename: str) -> list[list[int]]:
     """
     Reads a graph from a file and converts it to an adjacency matrix.
 
@@ -16,9 +16,6 @@ def read_graph_file(filename: str) -> list[list[int, int, int]]:
     where:
     - u and v are integers representing the connected nodes (0-indexed),
     - weight is an integer representing the weight of the edge.
-
-    The graph is assumed to be undirected. The adjacency matrix is symmetrical, 
-    and all non-connected node pairs have a weight of 0.
 
     Args:
         filename (str): The path to the file containing the graph data.
@@ -33,22 +30,37 @@ def read_graph_file(filename: str) -> list[list[int, int, int]]:
     ...     _ = tmpfile.write(csv_data)
     >>> read_graph_file(tmpfile.name)
     [[0, 5, 3, 0], [5, 0, 0, 2], [3, 0, 0, 4], [0, 2, 4, 0]]
+    >>> csv_data = "0,7,5\\n0,2,3\\n1,3,2\\n2,3,4\\n"
+    >>> with tempfile.NamedTemporaryFile(mode='w', delete=False, encoding="utf-8") as tmpfile:
+    ...     _ = tmpfile.write(csv_data)
+    >>> read_graph_file(tmpfile.name)
+    [[0, 0, 3, 0, 5], [0, 0, 0, 2, 0], [3, 0, 0, 4, 0], [0, 2, 4, 0, 0], [5, 0, 0, 0, 0]]
     """
-    edges = []
+    edges = {}
     with open(filename, 'r', encoding='utf-8') as file:
         reader = csv.reader(file)
         for row in reader:
             u, v, weight = map(int, row)
-            edges.append((u, v, weight))
+            if u not in edges:
+                edges[u] = set()
+            if v not in edges:
+                edges[v] = set()
+            edges[u].add((v, weight))
+            edges[v].add((u, weight))
 
-    n = max(max(u, v) for u, v, _ in edges) + 1
+    nodes = sorted(edges.keys())
+    node_index = {node: i for i, node in enumerate(nodes)}
 
+    n = len(nodes)
     graph = [[0] * n for _ in range(n)]
 
-    for u, v, weight in edges:
-        graph[u][v] = weight
-        graph[v][u] = weight
-    
+    for u, connections in edges.items():
+        u_idx = node_index[u]
+        for v, weight in connections:
+            v_idx = node_index[v]
+            graph[u_idx][v_idx] = weight
+            graph[v_idx][u_idx] = weight
+
     return graph
 
 
@@ -75,11 +87,14 @@ def main(graph_file, start_node, output_file):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Perform ACO pathfinding on a given graph")
-    parser.add_argument("-g", "--graph", required=True, help="Path to the graph file.")
-    parser.add_argument("--start-node", required=True, help="The starting node in the graph")
-    parser.add_argument("-o", "--output", required=True, help="Path to the output file.")
+    import doctest
+    doctest.testmod()
+    # parser = argparse.ArgumentParser(description="Perform ACO pathfinding on a given graph")
+    # parser.add_argument("-g", "--graph", required=True, help="Path to the graph file.")
+    # parser.add_argument("--start-node", required=True, help="The starting node in the graph")
+    # parser.add_argument("-o", "--output", required=True, help="Path to the output file.")
 
-    args = parser.parse_args()
+    # args = parser.parse_args()
 
-    main(args.graph, args.start_node, args.output)
+    # main(args.graph, args.start_node, args.output)
+
