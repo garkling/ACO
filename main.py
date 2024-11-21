@@ -29,12 +29,12 @@ def read_graph_file(filename: str) -> list[list[int]]:
     >>> with tempfile.NamedTemporaryFile(mode='w', delete=False, encoding="utf-8") as tmpfile:
     ...     _ = tmpfile.write(csv_data)
     >>> read_graph_file(tmpfile.name)
-    [[0, 5, 3, 0], [5, 0, 0, 2], [3, 0, 0, 4], [0, 2, 4, 0]]
+    [[-1, 5, 3, -1], [5, -1, -1, 2], [3, -1, -1, 4], [-1, 2, 4, -1]]
     >>> csv_data = "0,7,5\\n0,2,3\\n1,3,2\\n2,3,4\\n"
     >>> with tempfile.NamedTemporaryFile(mode='w', delete=False, encoding="utf-8") as tmpfile:
     ...     _ = tmpfile.write(csv_data)
     >>> read_graph_file(tmpfile.name)
-    [[0, 0, 3, 0, 5], [0, 0, 0, 2, 0], [3, 0, 0, 4, 0], [0, 2, 4, 0, 0], [5, 0, 0, 0, 0]]
+    [[-1, -1, 3, -1, 5], [-1, -1, -1, 2, -1], [3, -1, -1, 4, -1], [-1, 2, 4, -1, -1], [5, -1, -1, -1, -1]]
     """
     edges = {}
     with open(filename, 'r', encoding='utf-8') as file:
