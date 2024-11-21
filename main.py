@@ -52,7 +52,7 @@ def read_graph_file(filename: str) -> list[list[int]]:
     node_index = {node: i for i, node in enumerate(nodes)}
 
     n = len(nodes)
-    graph = [[0] * n for _ in range(n)]
+    graph = [[-1] * n for _ in range(n)]
 
     for u, connections in edges.items():
         u_idx = node_index[u]
