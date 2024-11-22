@@ -1,27 +1,24 @@
 import csv
 import argparse
 import numpy as np
-import networkx as nx   # graph builder library
-
-
-Graph = dict
+import networkx as nx  # graph.csv builder library
 
 
 def read_graph_file(filename: str) -> list[list[int]]:
     """
-    Reads a graph from a file and converts it to an adjacency matrix.
+    Reads a graph.csv from a file and converts it to an adjacency matrix.
 
-    The input file should contain edges of the graph, one per line, formatted as:
+    The input file should contain edges of the graph.csv, one per line, formatted as:
     u,v,weight
     where:
     - u and v are integers representing the connected nodes (0-indexed),
     - weight is an integer representing the weight of the edge.
 
     Args:
-        filename (str): The path to the file containing the graph data.
+        filename (str): The path to the file containing the graph.csv data.
 
     Returns:
-        list[list[int]]: A 2D adjacency matrix representing the graph.
+        list[list[int]]: A 2D adjacency matrix representing the graph.csv.
 
     Examples:
     >>> import tempfile
@@ -29,12 +26,12 @@ def read_graph_file(filename: str) -> list[list[int]]:
     >>> with tempfile.NamedTemporaryFile(mode='w', delete=False, encoding="utf-8") as tmpfile:
     ...     _ = tmpfile.write(csv_data)
     >>> read_graph_file(tmpfile.name)
-    [[-1, 5, 3, -1], [5, -1, -1, 2], [3, -1, -1, 4], [-1, 2, 4, -1]]
+    [[0, 5, 3, -1], [5, 0, -1, 2], [3, -1, 0, 4], [-1, 2, 4, 0]]
     >>> csv_data = "0,7,5\\n0,2,3\\n1,3,2\\n2,3,4\\n"
     >>> with tempfile.NamedTemporaryFile(mode='w', delete=False, encoding="utf-8") as tmpfile:
     ...     _ = tmpfile.write(csv_data)
     >>> read_graph_file(tmpfile.name)
-    [[-1, -1, 3, -1, 5], [-1, -1, -1, 2, -1], [3, -1, -1, 4, -1], [-1, 2, 4, -1, -1], [5, -1, -1, -1, -1]]
+    [[0, -1, 3, -1, 5], [-1, 0, -1, 2, -1], [3, -1, 0, 4, -1], [-1, 2, 4, 0, -1], [5, -1, -1, -1, 0]]
     """
     edges = {}
     with open(filename, 'r', encoding='utf-8') as file:
@@ -53,6 +50,8 @@ def read_graph_file(filename: str) -> list[list[int]]:
 
     n = len(nodes)
     graph = [[-1] * n for _ in range(n)]
+    for i in range(n):
+        graph[i][i] = 0
 
     for u, connections in edges.items():
         u_idx = node_index[u]
@@ -64,19 +63,19 @@ def read_graph_file(filename: str) -> list[list[int]]:
     return graph
 
 
-def write_graph_file(filename: str, graph: Graph):
+def write_graph_file(filename: str, graph: list[list[int]]):
     with open(filename, 'w', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(["Result"])
         writer.writerow([graph])
 
 
-def check_graph(graph:list[list[int, int, int]], start = 0) -> bool:
+def is_complete(graph: list[list[int]], start=0) -> bool:
     """
-    Tests whether the given graph is a complete unweighted graph.
+    Tests whether the given graph.csv is a complete unweighted graph.csv.
 
-    A complete graph is a graph in which every vertex is connected to all other vertices,
-    except herself. In the adjacency matrix of such a graph:
+    A complete graph.csv is a graph.csv in which every vertex is connected to all other vertices,
+    except herself. In the adjacency matrix of such a graph.csv:
     - there must be zeros on the diagonal (no loops)
     - all other elements must be positive numbers (there are edges between all vertices)
     - the matrix must be square
@@ -86,9 +85,9 @@ def check_graph(graph:list[list[int, int, int]], start = 0) -> bool:
         start (int): Start vertex (default 0)
 
     Returns:
-        bool: True if the graph is complete, False otherwise
-    >>> graph = [[0,10,12,11,14],[10,0,13,15,8],[12,13,0,9,14],[11,15,9,0,16],[14,8,14,16,0]]
-    >>> check_graph(graph)
+        bool: True if the graph.csv is complete, False otherwise
+    >>> graph.csv = [[0,10,12,11,14],[10,0,13,15,8],[12,13,0,9,14],[11,15,9,0,16],[14,8,14,16,0]]
+    >>> is_complete(graph.csv)
     True
     """
     n = len(graph)
@@ -97,53 +96,36 @@ def check_graph(graph:list[list[int, int, int]], start = 0) -> bool:
 
     for i in range(n):
         for j in range(n):
-            # Перевірка діагональних елементів
+            # Diagonal elements check
             if i == j and graph[i][j] != 0:
                 return False
-            # Перевірка недіагональних елементів
+            # Non-diagonal elements check
             if i != j and graph[i][j] <= 0:
                 return False
+
     return True
 
 
-    # n = len(graph)
-    # visited = [False] * n
-
-    # def dfs(vertex):
-    #     visited[vertex] = True
-    #     for neighbor in range(n):
-    #         if graph[vertex][neighbor] > 0 and not visited[neighbor]: #Внесені зміни в логіку. 0 - це вершина наклається сама на себе
-    #             dfs(neighbor)
-
-    # dfs(start)
-    # return all(visited)
-
-
-
 def main(graph_file, start_node, output_file):
-
-    print(f"Processing graph: {graph_file}")
+    print(f"Processing graph.csv: {graph_file}")
     print(f"Starting node: {start_node}")
     print(f"Output file: {output_file}")
 
     graph = read_graph_file(graph_file)
-    # process()
     write_graph_file(output_file, graph)
 
 
-
-def run_ant_colony_optimization(graph, num_iterations, num_ants, evaporation_rate,
+def run_ant_colony_optimization(graph, num_iterations, ant_num, evaporation_rate,
                                 pheromone_factor, visibility_factor):
-
     """
     Implements the ant colony algorithm for solving the traveling salesman problem.
 
-    The algorithm simulates the behavior of ants to find the shortest path in the graph.
+    The algorithm simulates the behavior of ants to find the shortest path in the graph.csv.
     Ants leave pheromones on the paths they take. Stronger pheromone trails
     shorter paths attract more ants, leading to route optimization.
 
     Parameters:
-        - graph (list[list[int]]): Matrix of distances between cities (graph nodes)
+        - graph.csv (list[list[int]]): Matrix of distances between cities (graph.csv nodes)
         - num_iterations (int): Number of algorithm iterations
         - num_ants (int): Number of ants in the colony
         - evaporation_rate (float): Pheromone evaporation rate (0 < rate < 1)
@@ -156,97 +138,97 @@ def run_ant_colony_optimization(graph, num_iterations, num_ants, evaporation_rat
             - path_cost (int): Total length of the optimal route
     """
 
-    working_graph = np.array(graph)
-    number_nodes = len(graph)
-    #обчислення видимості наступної ноди visibility(i,j)=1/d(i,j). Працює все за масивом з numpy
-    visibility = 1 / working_graph
-    #Оскільки на головній діагоналі у нас нулі, то при діленні
-    # на 0 у numpy ми отримаємо inf. Повертаємо всім значенням inf - 0
-    visibility[visibility == np.inf] = 0
+    graph = np.array(graph)
+    node_num = len(graph)
 
+    # visibility calculation of each node - visibility(i,j)=1/d(i,j)
+    visibility = np.divide(1, graph, where=graph != 0)
+    # pheromone matrix initialization
+    pheromone = 0.1 * np.ones((ant_num, node_num))
+    # path matrix initialization with shape (num_ants, node_count + 1) (+ 1 node because we want to return back to the start)
+    path = np.ones((ant_num, node_num + 1))
 
-    #ініціалізація феромнів, присутніх на стежках до нод
-    #numpy.ones -> Повертає новий масив заданої форми та типу, заповнений одиницями.
-    pheromne = 0.1 * np.ones((num_ants, number_nodes))
-
-    # ініціалізація маршруту мурах із розміром path(num_ants, number_nodes + 1)
-    # number_nodes + 1, тому що ми хочемо повернутися до початку
-
-    path = np.ones((num_ants, number_nodes + 1))
-
+    best_path = np.zeros(node_num)
+    dist_min_distance = np.zeros(node_num)
     for _ in range(num_iterations):
-        # Індексація за numpy. : -всі елементи, 0 - з першого рядка.
+        # ensure all ants start with 1-st node
         path[:, 0] = 1
-        for i in range(num_ants):
-            temp_visibility = np.array(visibility)
-            for j in range(number_nodes -1):
-                characteristic  = np.zeros(number_nodes)
-                #ініціалізація сукупного масиву ймовірностей. спершу заповнений нулями
-                sum_of_probability  = np.zeros(number_nodes)
+        for i in range(ant_num):
+            local_visibility = np.array(visibility)
+            for j in range(node_num - 1):
+                curr_node = int(path[i, j] - 1)
+                # set current node visibility to 0
+                local_visibility[:, curr_node] = 0
 
-                current_node = int(path[i,j] - 1)
-                #скидаємо видимість поточної ноди до нуля
-                temp_visibility[:,current_node] = 0
+                pheromone_characteristic = np.power(pheromone[curr_node, :], pheromone_factor)
+                visibility_characteristic = np.power(local_visibility[curr_node, :], visibility_factor)
 
-                pheromne_characteristic = np.power(pheromne[current_node,:], pheromone_factor)
-                visibility_characteristic = np.power(temp_visibility[current_node,:],
-                                                     visibility_factor)
+                # conversion from 1D to 2D matrix
+                pheromone_characteristic = pheromone_characteristic[:, np.newaxis]
+                visibility_characteristic = visibility_characteristic[:, np.newaxis]
 
-                pheromne_characteristic = pheromne_characteristic[:,np.newaxis]
-                visibility_characteristic = visibility_characteristic[:,np.newaxis]
-
-                characteristic = np.multiply(pheromne_characteristic, visibility_characteristic)
-                total = np.sum(characteristic)
-                sum_of_probability = np.cumsum(characteristic / total)
+                characteristic = np.multiply(pheromone_characteristic, visibility_characteristic)
+                # calculating probabilistic intervals from 1 to 0 for given characteristic
+                probabilistic_sum = np.cumsum(characteristic / np.sum(characteristic))
 
                 r = np.random.random_sample()
-                path[i,j+1] = np.nonzero(sum_of_probability>r)[0][0]+1
-            #пошук останнього ноди, яку ми не відвідали.
-            # така схема, бо до останньої ноди є лише один шлях
-            end_node = list(set(list(range(1, number_nodes + 1))) - set(path[i, :-2]))[0]
-            path[i,-2] = end_node
+                path[i, j + 1] = np.nonzero(probabilistic_sum > r)[0][0] + 1
+
+            # search the last not visited node by exclusion
+            end_node = list(set(range(1, node_num + 1)) - set(path[i, :-2]))[0]
+            path[i, -2] = end_node
 
         optimized_path = np.array(path)
-        total_distance_of_tour = np.zeros((num_ants, 1))
-
-        for i in range (num_ants):
+        tour_total_distance = np.zeros((ant_num, 1))
+        for i in range(ant_num):
             distance = 0
-            for j in range(number_nodes - 1):
-                #розрахунок загальної відстані
-                distance = distance +working_graph[int(optimized_path[i, j])-1, int(optimized_path[i, j + 1]) - 1]
-            total_distance_of_tour[i] = distance
+            for j in range(node_num - 1):
+                distance = distance + graph[int(optimized_path[i, j]) - 1, int(optimized_path[i, j + 1]) - 1]
 
-        dist_min_loc = np.argmin(total_distance_of_tour)
-        dist_min_cost = total_distance_of_tour[dist_min_loc]
+            tour_total_distance[i] = distance
 
-        best_path = path[dist_min_loc,:]
-        pheromne = (1 - evaporation_rate) * pheromne
+        # get iteration best path
+        dist_min_idx = np.argmin(tour_total_distance)
+        dist_min_distance = tour_total_distance[dist_min_idx]
+        best_path = path[dist_min_idx, :]
 
-        for i in range(num_ants):
-            for j in range(number_nodes):
-                dt = 1 / total_distance_of_tour[i]
-                pheromne[int(optimized_path[i, j]) - 1,int(optimized_path[i, j + 1]) - 1] = pheromne[int(optimized_path[i, j] ) - 1,int(optimized_path[i, j + 1]) - 1] + dt
+        # adjust pheromones
+        pheromone = (1 - evaporation_rate) * pheromone
+        for i in range(ant_num):
+            for j in range(node_num):
+                dt = 1 / tour_total_distance[i]
+                pheromone[int(optimized_path[i, j]) - 1, int(optimized_path[i, j + 1]) - 1] += dt
 
-    # print(f'оптимізований шлях : {best_path}')
-    cost_of_best = int(dist_min_cost[0]) + working_graph[int(best_path[-2])-1,0]
-    # print('вартість оптимізованого шляху',cost_of_best)
-    return (best_path, cost_of_best)
-
+    best_distance = int(dist_min_distance[0]) + graph[int(best_path[-2]) - 1, 0]
+    return best_path, best_distance
 
 
 if __name__ == "__main__":
-    import doctest
-    doctest.testmod()
-    # parser = argparse.ArgumentParser(description="Perform ACO pathfinding on a given graph")
-    # parser.add_argument("-g", "--graph", required=True, help="Path to the graph file.")
-    # parser.add_argument("--start-node", required=True, help="The starting node in the graph")
+    # parser = argparse.ArgumentParser(description="Perform ACO pathfinding on a given graph.csv")
+    # parser.add_argument("-g", "--graph.csv", required=True, help="Path to the graph.csv file.")
+    # parser.add_argument("--start-node", required=True, help="The starting node in the graph.csv")
     # parser.add_argument("-o", "--output", required=True, help="Path to the output file.")
 
     # args = parser.parse_args()
 
-    # main(args.graph, args.start_node, args.output)
+    # main(args.graph.csv, args.start_node, args.output)
 
-    graph_ = [[0,10,12,11,14],[10,0,13,15,8],[12,13,0,9,14],[11,15,9,0,16],[14,8,14,16,0]]
+    # graph_ = [[0, 10, 12, 11, 14], [10, 0, 13, 15, 8], [12, 13, 0, 9, 14], [11, 15, 9, 0, 16], [14, 8, 14, 16, 0]]
+    graph_ = read_graph_file("graph.csv")
+    iter_num = 100
+    ant_num = 100
+    evaporation_rate = .5
+    pheromone_factor = 1
+    visibility_factor = 2
+    if is_complete(graph_):
+        path, distance = run_ant_colony_optimization(
+            graph_,
+            iter_num,
+            ant_num,
+            evaporation_rate,
+            pheromone_factor,
+            visibility_factor
+        )
 
-    if check_graph(graph_):
-        run_ant_colony_optimization(graph_, 100, 10, 0.5 , 1 ,2 )
+        print(f"Path: {path}")
+        print(f"Distance: {distance}")
