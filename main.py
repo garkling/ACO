@@ -1,8 +1,19 @@
+from dataclasses import dataclass
 import csv
 import argparse
 import numpy as np
 import networkx as nx  # graph.csv builder library
 
+
+@dataclass
+class ACOParameters:
+    """Class for storing parameters for ACO algorithm"""
+    graph: list[list[int]]
+    num_iterations: int
+    num_ants: int
+    evaporation_rate: float
+    pheromone_factor: float
+    visibility_factor: float
 
 def read_graph_file(filename: str) -> list[list[int]]:
     """
@@ -115,8 +126,7 @@ def main(graph_file, start_node, output_file):
     write_graph_file(output_file, graph)
 
 
-def run_ant_colony_optimization(graph, num_iterations, ant_num, evaporation_rate,
-                                pheromone_factor, visibility_factor):
+def run_ant_colony_optimization(params: ACOParameters):
     """
     Implements the ant colony algorithm for solving the traveling salesman problem.
 
@@ -138,30 +148,30 @@ def run_ant_colony_optimization(graph, num_iterations, ant_num, evaporation_rate
             - path_cost (int): Total length of the optimal route
     """
 
-    graph = np.array(graph)
+    graph = np.array(params.graph)
     node_num = len(graph)
 
     # visibility calculation of each node - visibility(i,j)=1/d(i,j)
     visibility = np.divide(1, graph, where=graph != 0)
     # pheromone matrix initialization
-    pheromone = 0.1 * np.ones((ant_num, node_num))
+    pheromone = 0.1 * np.ones((params.num_ants, node_num))
     # path matrix initialization with shape (num_ants, node_count + 1) (+ 1 node because we want to return back to the start)
-    path = np.ones((ant_num, node_num + 1))
+    path = np.ones((params.num_ants, node_num + 1))
 
     best_path = np.zeros(node_num)
     dist_min_distance = np.zeros(node_num)
-    for _ in range(num_iterations):
+    for _ in range(params.num_iterations):
         # ensure all ants start with 1-st node
         path[:, 0] = 1
-        for i in range(ant_num):
+        for i in range(params.num_ants):
             local_visibility = np.array(visibility)
             for j in range(node_num - 1):
                 curr_node = int(path[i, j] - 1)
                 # set current node visibility to 0
                 local_visibility[:, curr_node] = 0
 
-                pheromone_characteristic = np.power(pheromone[curr_node, :], pheromone_factor)
-                visibility_characteristic = np.power(local_visibility[curr_node, :], visibility_factor)
+                pheromone_characteristic = np.power(pheromone[curr_node, :], params.pheromone_factor)
+                visibility_characteristic = np.power(local_visibility[curr_node, :], params.evaporation_rate)
 
                 # conversion from 1D to 2D matrix
                 pheromone_characteristic = pheromone_characteristic[:, np.newaxis]
@@ -179,8 +189,8 @@ def run_ant_colony_optimization(graph, num_iterations, ant_num, evaporation_rate
             path[i, -2] = end_node
 
         optimized_path = np.array(path)
-        tour_total_distance = np.zeros((ant_num, 1))
-        for i in range(ant_num):
+        tour_total_distance = np.zeros((params.num_ants, 1))
+        for i in range(params.num_ants):
             distance = 0
             for j in range(node_num - 1):
                 distance = distance + graph[int(optimized_path[i, j]) - 1, int(optimized_path[i, j + 1]) - 1]
@@ -193,8 +203,8 @@ def run_ant_colony_optimization(graph, num_iterations, ant_num, evaporation_rate
         best_path = path[dist_min_idx, :]
 
         # adjust pheromones
-        pheromone = (1 - evaporation_rate) * pheromone
-        for i in range(ant_num):
+        pheromone = (1 - params.evaporation_rate) * pheromone
+        for i in range(params.num_ants):
             for j in range(node_num):
                 dt = 1 / tour_total_distance[i]
                 pheromone[int(optimized_path[i, j]) - 1, int(optimized_path[i, j + 1]) - 1] += dt
@@ -214,21 +224,15 @@ if __name__ == "__main__":
     # main(args.graph.csv, args.start_node, args.output)
 
     # graph_ = [[0, 10, 12, 11, 14], [10, 0, 13, 15, 8], [12, 13, 0, 9, 14], [11, 15, 9, 0, 16], [14, 8, 14, 16, 0]]
-    graph_ = read_graph_file("graph.csv")
-    iter_num = 100
-    ant_num = 100
-    evaporation_rate = .5
-    pheromone_factor = 1
-    visibility_factor = 2
-    if is_complete(graph_):
-        path, distance = run_ant_colony_optimization(
-            graph_,
-            iter_num,
-            ant_num,
-            evaporation_rate,
-            pheromone_factor,
-            visibility_factor
-        )
+    parameters = ACOParameters(graph=read_graph_file("graph.csv"),
+        num_iterations=100,
+        num_ants=100,
+        evaporation_rate=.5,
+        pheromone_factor=1,
+        visibility_factor=2)
+
+    if is_complete(parameters.graph):
+        path, distance = run_ant_colony_optimization(parameters)
 
         print(f"Path: {path}")
         print(f"Distance: {distance}")
