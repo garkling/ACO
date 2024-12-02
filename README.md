@@ -1,6 +1,6 @@
 # ACO pathfinding algorithm
-___
-![Без назви-1_Монтажна область 1](https://github.com/user-attachments/assets/937e8306-bd11-4410-ada7-a1752e1f5e71)
+
+![Без назви-2_Монтажна область 1_Монтажна область 1](https://github.com/user-attachments/assets/05f9d95b-c9ef-4844-abef-33b1ea583896)
 
 ## Огляд проблеми
 ### Модуль імплементує мурашиний алгоритм. 
