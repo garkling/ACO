@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from concurrent.futures import ProcessPoolExecutor, as_completed
 import csv
 import numpy as np
 
@@ -114,6 +115,13 @@ def is_complete(graph: list[list[int]], start=0) -> bool:
 
     return True
 
+def initialize_parameters(params):
+    graph = np.array(params.graph)
+    node_num = len(graph)
+    visibility = np.divide(1, graph, where=graph != 0)
+    pheromone = 0.1 * np.ones((params.num_ants, node_num))
+    path = np.ones((params.num_ants, node_num + 1))
+    return graph, node_num, visibility, pheromone, path
 
 def is_safe(v: int, graph: list[list[int]], path: list[int], pos: int) -> bool:
     """
@@ -225,98 +233,76 @@ def main(graph_file, start_node, output_file):
     print(f"Starting node: {start_node}")
     print(f"Output file: {output_file}")
 
-    graph = read_graph_file(graph_file)
-    write_graph_file(output_file, graph)
+def run_iteration(graph, visibility, pheromone, params, node_num, path):
+    for i in range(params.num_ants):
+        local_visibility = np.array(visibility)
+        for j in range(node_num - 1):
+            curr_node = int(path[i, j] - 1)
+            local_visibility[:, curr_node] = 0
+
+            pheromone_characteristic = np.power(pheromone[curr_node, :], params.pheromone_factor)
+            visibility_characteristic = np.power(local_visibility[curr_node, :], params.visibility_factor)
+            characteristic = pheromone_characteristic * visibility_characteristic
+
+            probabilistic_sum = np.cumsum(characteristic / np.sum(characteristic))
+            r = np.random.random_sample()
+            path[i, j + 1] = np.nonzero(probabilistic_sum > r)[0][0] + 1
+
+        end_node = list(set(range(1, node_num + 1)) - set(path[i, :-2]))[0]
+        path[i, -2] = end_node
+    return path
 
 
-def run_ant_colony_optimization(params: ACOParameters):
-    """
-    Implements the ant colony algorithm for solving the traveling salesman problem.
+def worker_run_iteration(args):
+    graph, visibility, pheromone, params, node_num, path = args
+    return run_iteration(graph, visibility, pheromone, params, node_num, path)
 
-    The algorithm simulates the behavior of ants to find the shortest path in the graph.csv.
-    Ants leave pheromones on the paths they take. Stronger pheromone trails
-    shorter paths attract more ants, leading to route optimization.
 
-    Parameters:
-        - graph.csv (list[list[int]]): Matrix of distances between cities (graph.csv nodes)
-        - num_iterations (int): Number of algorithm iterations
-        - num_ants (int): Number of ants in the colony
-        - evaporation_rate (float): Pheromone evaporation rate (0 < rate < 1)
-        - pheromone_factor (float): Weighting factor of pheromone influence
-        - visibility_factor (float): Visibility weighting factor (inverse distance)
+def update_pheromones(pheromone, path, graph, params, node_num):
+    pheromone = (1 - params.evaporation_rate) * pheromone
+    tour_total_distance = np.zeros((params.num_ants, 1))
 
-    Returns:
-        tuple: (best_path, path_cost) where:
-            - best_path (numpy.ndarray): The sequence of vertices of the optimal route
-            - path_cost (int): Total length of the optimal route
-    """
+    for i in range(params.num_ants):
+        distance = 0
+        for j in range(node_num - 1):
+            distance += graph[int(path[i, j]) - 1, int(path[i, j + 1]) - 1]
 
-    graph = np.array(params.graph)
-    node_num = len(graph)
+        tour_total_distance[i] = distance
+        for j in range(node_num - 1):
+            dt = 1 / distance
+            pheromone[int(path[i, j]) - 1, int(path[i, j + 1]) - 1] += dt
 
-    # visibility calculation of each node - visibility(i,j)=1/d(i,j)
-    visibility = np.divide(1, graph, where=graph != 0)
-    # pheromone matrix initialization
-    pheromone = 0.1 * np.ones((params.num_ants, node_num))
-    # path matrix initialization with shape (num_ants, node_count + 1) (+ 1 node because we want to return back to the start)
-    path = np.ones((params.num_ants, node_num + 1))
+    return pheromone, tour_total_distance
 
-    best_path = np.zeros(node_num)
-    dist_min_distance = np.zeros(node_num)
-    for _ in range(params.num_iterations):
-        # ensure all ants start with 1-st node
-        path[:, 0] = 1
-        for i in range(params.num_ants):
-            local_visibility = np.array(visibility)
-            for j in range(node_num - 1):
-                curr_node = int(path[i, j] - 1)
-                # set current node visibility to 0
-                local_visibility[:, curr_node] = 0
-
-                pheromone_characteristic = np.power(pheromone[curr_node, :], params.pheromone_factor)
-                visibility_characteristic = np.power(local_visibility[curr_node, :], params.evaporation_rate)
-
-                # conversion from 1D to 2D matrix
-                pheromone_characteristic = pheromone_characteristic[:, np.newaxis]
-                visibility_characteristic = visibility_characteristic[:, np.newaxis]
-
-                characteristic = np.multiply(pheromone_characteristic, visibility_characteristic)
-                # calculating probabilistic intervals from 1 to 0 for given characteristic
-                probabilistic_sum = np.cumsum(characteristic / np.sum(characteristic))
-
-                r = np.random.random_sample()
-                path[i, j + 1] = np.nonzero(probabilistic_sum > r)[0][0] + 1
-
-            # search the last not visited node by exclusion
-            end_node = list(set(range(1, node_num + 1)) - set(path[i, :-2]))[0]
-            path[i, -2] = end_node
-
-        optimized_path = np.array(path)
-        tour_total_distance = np.zeros((params.num_ants, 1))
-        for i in range(params.num_ants):
-            distance = 0
-            for j in range(node_num - 1):
-                distance = distance + graph[int(optimized_path[i, j]) - 1, int(optimized_path[i, j + 1]) - 1]
-
-            tour_total_distance[i] = distance
-
-        # get iteration best path
-        dist_min_idx = np.argmin(tour_total_distance)
-        dist_min_distance = tour_total_distance[dist_min_idx]
-        best_path = path[dist_min_idx, :]
-
-        # adjust pheromones
-        pheromone = (1 - params.evaporation_rate) * pheromone
-        for i in range(params.num_ants):
-            for j in range(node_num):
-                dt = 1 / tour_total_distance[i]
-                pheromone[int(optimized_path[i, j]) - 1, int(optimized_path[i, j + 1]) - 1] += dt
-
-        yield path
-
-    best_distance = int(dist_min_distance[0]) + graph[int(best_path[-2]) - 1, 0]
+def find_best_path(path, tour_total_distance):
+    dist_min_idx = np.argmin(tour_total_distance)
+    best_path = path[dist_min_idx, :]
+    best_distance = tour_total_distance[dist_min_idx]
     return best_path, best_distance
 
+
+def run_ant_colony_optimization(params):
+    graph, node_num, visibility, pheromone, path = initialize_parameters(params)
+    best_path = None
+    best_distance = float('inf')
+
+    with ProcessPoolExecutor(max_workers=4) as executor:
+        for _ in range(params.num_iterations // 4):
+            futures = [
+                executor.submit(worker_run_iteration, (graph, visibility, pheromone, params, node_num, path))
+                for _ in range(4)
+            ]
+
+            for future in as_completed(futures):
+                local_path = future.result()
+                pheromone, tour_total_distance = update_pheromones(pheromone, local_path, graph, params, node_num)
+                current_best_path, current_best_distance = find_best_path(local_path, tour_total_distance)
+
+                if current_best_distance < best_distance:
+                    best_path, best_distance = current_best_path, current_best_distance
+
+        best_distance += graph[int(best_path[-2]) - 1, 0]
+    return best_path, int(best_distance)
 
 def launch(config):
     graph = read_graph_file(config['infile'])
@@ -338,7 +324,6 @@ def launch(config):
         path, distance = e.value
 
     return path, distance
-
 
 if __name__ == "__main__":
     import configparser
