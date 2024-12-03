@@ -1,7 +1,5 @@
 import csv
-import argparse
 import numpy as np
-import networkx as nx  # graph.csv builder library
 
 
 def read_graph_file(filename: str) -> list[list[int]]:
@@ -86,8 +84,8 @@ def is_complete(graph: list[list[int]], start=0) -> bool:
 
     Returns:
         bool: True if the graph.csv is complete, False otherwise
-    >>> graph.csv = [[0,10,12,11,14],[10,0,13,15,8],[12,13,0,9,14],[11,15,9,0,16],[14,8,14,16,0]]
-    >>> is_complete(graph.csv)
+    >>> graph = [[0,10,12,11,14],[10,0,13,15,8],[12,13,0,9,14],[11,15,9,0,16],[14,8,14,16,0]]
+    >>> is_complete(graph)
     True
     """
     n = len(graph)
@@ -104,6 +102,7 @@ def is_complete(graph: list[list[int]], start=0) -> bool:
                 return False
 
     return True
+
 
 def is_safe(v: int, graph: list[list[int]], path: list[int], pos: int) -> bool:
     """
@@ -196,11 +195,11 @@ def is_ham_cycle(graph: list[list[int]]) -> bool:
     Returns:
         bool: True if a Hamiltonian cycle exists, False otherwise.
 
-    >>> ham_cycle([[0, 1, 0, 1, 0], [1, 0, 1, 1, 1], [0, 1, 0, 0, 1], [1, 1, 0, 0, 1], \
+    >>> is_ham_cycle([[0, 1, 0, 1, 0], [1, 0, 1, 1, 1], [0, 1, 0, 0, 1], [1, 1, 0, 0, 1], \
 [0, 1, 1, 1, 0]])
     True
 
-    >>> ham_cycle([[1, 0, 1, 1, 1], [1, 0, 1, 1, 1], [1, 0, 1, 1, 1], [1, 0, 1, 1, 1], \
+    >>> is_ham_cycle([[1, 0, 1, 1, 1], [1, 0, 1, 1, 1], [1, 0, 1, 1, 1], [1, 0, 1, 1, 1], \
 [1, 0, 1, 1, 1]])
     False
     """
@@ -303,36 +302,44 @@ def run_ant_colony_optimization(graph, num_iterations, ant_num, evaporation_rate
                 dt = 1 / tour_total_distance[i]
                 pheromone[int(optimized_path[i, j]) - 1, int(optimized_path[i, j + 1]) - 1] += dt
 
+        yield path
+
     best_distance = int(dist_min_distance[0]) + graph[int(best_path[-2]) - 1, 0]
     return best_path, best_distance
 
 
+def launch(config):
+    graph = read_graph_file(config['infile'])
+    if not is_complete(graph):
+        return None
+
+    gen = run_ant_colony_optimization(
+        graph,
+        config.getint('iters'),
+        config.getint('ants'),
+        config.getfloat('evaporation_rate'),
+        config.getfloat('pheromone_factor'),
+        config.getfloat('visibility_factor')
+    )
+    try:
+        while True:
+            next(gen)
+    except StopIteration as e:
+        path, distance = e.value
+
+    return path, distance
+
+
 if __name__ == "__main__":
-    # parser = argparse.ArgumentParser(description="Perform ACO pathfinding on a given graph.csv")
-    # parser.add_argument("-g", "--graph.csv", required=True, help="Path to the graph.csv file.")
-    # parser.add_argument("--start-node", required=True, help="The starting node in the graph.csv")
-    # parser.add_argument("-o", "--output", required=True, help="Path to the output file.")
+    import configparser
 
-    # args = parser.parse_args()
+    config = configparser.ConfigParser()
+    config.read('config.ini')
 
-    # main(args.graph.csv, args.start_node, args.output)
-
-    # graph_ = [[0, 10, 12, 11, 14], [10, 0, 13, 15, 8], [12, 13, 0, 9, 14], [11, 15, 9, 0, 16], [14, 8, 14, 16, 0]]
-    graph_ = read_graph_file("graph.csv")
-    iter_num = 100
-    ant_num = 100
-    evaporation_rate = .5
-    pheromone_factor = 1
-    visibility_factor = 2
-    if is_complete(graph_):
-        path, distance = run_ant_colony_optimization(
-            graph_,
-            iter_num,
-            ant_num,
-            evaporation_rate,
-            pheromone_factor,
-            visibility_factor
-        )
-
+    result = launch(config['common'])
+    if result is None:
+        print("Graph is not suitable for ACO")
+    else:
+        path, distance = result
         print(f"Path: {path}")
         print(f"Distance: {distance}")
