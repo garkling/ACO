@@ -1,9 +1,7 @@
 from dataclasses import dataclass
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import csv
-import argparse
 import numpy as np
-import networkx as nx  # graph.csv builder library
 
 
 @dataclass
@@ -38,12 +36,12 @@ def read_graph_file(filename: str) -> list[list[int]]:
     >>> with tempfile.NamedTemporaryFile(mode='w', delete=False, encoding="utf-8") as tmpfile:
     ...     _ = tmpfile.write(csv_data)
     >>> read_graph_file(tmpfile.name)
-    [[0, 5, 3, -1], [5, 0, -1, 2], [3, -1, 0, 4], [-1, 2, 4, 0]]
+    [[0, 5, 3, 0], [5, 0, 0, 2], [3, 0, 0, 4], [0, 2, 4, 0]]
     >>> csv_data = "0,7,5\\n0,2,3\\n1,3,2\\n2,3,4\\n"
     >>> with tempfile.NamedTemporaryFile(mode='w', delete=False, encoding="utf-8") as tmpfile:
     ...     _ = tmpfile.write(csv_data)
     >>> read_graph_file(tmpfile.name)
-    [[0, -1, 3, -1, 5], [-1, 0, -1, 2, -1], [3, -1, 0, 4, -1], [-1, 2, 4, 0, -1], [5, -1, -1, -1, 0]]
+    [[0, 0, 3, 0, 5], [0, 0, 0, 2, 0], [3, 0, 0, 4, 0], [0, 2, 4, 0, 0], [5, 0, 0, 0, 0]]
     """
     edges = {}
     with open(filename, 'r', encoding='utf-8') as file:
@@ -98,8 +96,8 @@ def is_complete(graph: list[list[int]], start=0) -> bool:
 
     Returns:
         bool: True if the graph.csv is complete, False otherwise
-    >>> graph.csv = [[0,10,12,11,14],[10,0,13,15,8],[12,13,0,9,14],[11,15,9,0,16],[14,8,14,16,0]]
-    >>> is_complete(graph.csv)
+    >>> graph = [[0,10,12,11,14],[10,0,13,15,8],[12,13,0,9,14],[11,15,9,0,16],[14,8,14,16,0]]
+    >>> is_complete(graph)
     True
     """
     n = len(graph)
@@ -125,6 +123,115 @@ def initialize_parameters(params):
     path = np.ones((params.num_ants, node_num + 1))
     return graph, node_num, visibility, pheromone, path
 
+def is_safe(v: int, graph: list[list[int]], path: list[int], pos: int) -> bool:
+    """
+    Checks if the vertex `v` can be added to the Hamiltonian path at position `pos`.
+
+    Args:
+        v (int): The vertex to be checked for inclusion in the path.
+        graph (list[list[int]]): The adjacency matrix of the graph, where 
+            graph[i][j] != 0 indicates an edge between vertices `i` and `j`, and 0 otherwise.
+        path (list[int]): The current Hamiltonian path under construction, where 
+            each element is a vertex in the order of traversal.
+        pos (int): The current position in the path where the vertex `v` is to be placed.
+
+    Returns:
+        bool: 
+            - True if the vertex `v` can be added to the path at position `pos`.
+            - False if adding the vertex violates the conditions of the Hamiltonian path.
+
+    Conditions checked:
+        1. There must be an edge between the previously added vertex (`path[pos - 1]`) and `v`.
+        2. The vertex `v` should not already exist in the current path.
+    
+    >>> graph = [[0, 1, 0, 1], [1, 0, 1, 1], [0, 1, 0, 1], [1, 1, 1, 0]]
+    >>> path = [0, -1, -1, -1]
+    >>> is_safe(1, graph, path, 1)
+    True
+    >>> is_safe(2, graph, path, 1)
+    False
+    >>> path = [0, 1, -1, -1]
+    >>> is_safe(1, graph, path, 2)
+    False
+    """
+    if graph[path[pos - 1]][v] == 0:
+        return False
+
+    if v in path:
+        return False
+
+    return True
+
+
+def ham_cycle_util(graph: list[list[int]], path: list[int], pos: int) -> bool:
+    """
+    This function attempts to add vertices to the path, one by one, while checking 
+    if the conditions of a Hamiltonian cycle are satisfied (i.e., each vertex is 
+    visited exactly once, and there is an edge between consecutive vertices).
+
+    Args:
+        graph (list[list[int]]): Adjacency matrix of the graph.
+        path (list[int]): Current path being constructed.
+        pos (int): Current position in the path to which the next vertex is to be added.
+
+    Returns:
+        bool: 
+            - True if a Hamiltonian cycle is found.
+            - False if no Hamiltonian cycle exists starting from the current position.
+
+    >>> graph = [[0, 1, 0, 1], [1, 0, 1, 1], [0, 1, 0, 1], [1, 1, 1, 0]]
+    >>> path = [0, -1, -1, -1]
+    >>> ham_cycle_util(graph, path, 1)
+    True
+
+    >>> graph = [[0, 1, 0, 0], [1, 0, 1, 0], [0, 1, 0, 1], [0, 0, 1, 0]]
+    >>> path = [0, -1, -1, -1]
+    >>> ham_cycle_util(graph, path, 1)
+    False
+    """
+    if pos == len(graph):
+        return graph[path[pos - 1]][path[0]] != 0
+
+    for v in range(1, len(graph)):
+        if is_safe(v, graph, path, pos):
+            path[pos] = v
+
+            if ham_cycle_util(graph, path, pos + 1):
+                return True
+
+            path[pos] = -1
+
+    return False
+
+
+def is_ham_cycle(graph: list[list[int]]) -> bool:
+    """
+    Checks if a Hamiltonian cycle exists in the given graph.
+
+    Args:
+        graph (list[list[int]]): Adjacency matrix of the graph.
+
+    Returns:
+        bool: True if a Hamiltonian cycle exists, False otherwise.
+
+    >>> is_ham_cycle([[0, 1, 0, 1, 0], [1, 0, 1, 1, 1], [0, 1, 0, 0, 1], [1, 1, 0, 0, 1], \
+[0, 1, 1, 1, 0]])
+    True
+
+    >>> is_ham_cycle([[1, 0, 1, 1, 1], [1, 0, 1, 1, 1], [1, 0, 1, 1, 1], [1, 0, 1, 1, 1], \
+[1, 0, 1, 1, 1]])
+    False
+    """
+    path = [-1] * len(graph)
+    path[0] = 0
+
+    return ham_cycle_util(graph, path, 1)
+
+
+def main(graph_file, start_node, output_file):
+    print(f"Processing graph.csv: {graph_file}")
+    print(f"Starting node: {start_node}")
+    print(f"Output file: {output_file}")
 
 def run_iteration(graph, visibility, pheromone, params, node_num, path):
     for i in range(params.num_ants):
@@ -167,7 +274,6 @@ def update_pheromones(pheromone, path, graph, params, node_num):
 
     return pheromone, tour_total_distance
 
-
 def find_best_path(path, tour_total_distance):
     dist_min_idx = np.argmin(tour_total_distance)
     best_path = path[dist_min_idx, :]
@@ -197,26 +303,38 @@ def run_ant_colony_optimization(params):
 
         best_distance += graph[int(best_path[-2]) - 1, 0]
     return best_path, int(best_distance)
+
+def launch(config):
+    graph = read_graph_file(config['infile'])
+    if not is_complete(graph):
+        return None
+
+    gen = run_ant_colony_optimization(
+        graph,
+        config.getint('iters'),
+        config.getint('ants'),
+        config.getfloat('evaporation_rate'),
+        config.getfloat('pheromone_factor'),
+        config.getfloat('visibility_factor')
+    )
+    try:
+        while True:
+            next(gen)
+    except StopIteration as e:
+        path, distance = e.value
+
+    return path, distance
+
 if __name__ == "__main__":
-    # parser = argparse.ArgumentParser(description="Perform ACO pathfinding on a given graph.csv")
-    # parser.add_argument("-g", "--graph.csv", required=True, help="Path to the graph.csv file.")
-    # parser.add_argument("--start-node", required=True, help="The starting node in the graph.csv")
-    # parser.add_argument("-o", "--output", required=True, help="Path to the output file.")
+    import configparser
 
-    # args = parser.parse_args()
+    config = configparser.ConfigParser()
+    config.read('config.ini')
 
-    # main(args.graph.csv, args.start_node, args.output)
-
-    # graph_ = [[0, 10, 12, 11, 14], [10, 0, 13, 15, 8], [12, 13, 0, 9, 14], [11, 15, 9, 0, 16], [14, 8, 14, 16, 0]]
-    parameters = ACOParameters(graph=read_graph_file("graph.csv"),
-        num_iterations=1000,
-        num_ants=1000,
-        evaporation_rate=.5,
-        pheromone_factor=1,
-        visibility_factor=2)
-
-    if is_complete(parameters.graph):
-        path, distance = run_ant_colony_optimization(parameters)
-
+    result = launch(config['common'])
+    if result is None:
+        print("Graph is not suitable for ACO")
+    else:
+        path, distance = result
         print(f"Path: {path}")
         print(f"Distance: {distance}")

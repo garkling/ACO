@@ -1,1 +1,2 @@
-networkx==3.4.2
+NumPy==2.1.3
+pygame==2.6.1
