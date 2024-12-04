@@ -1,3 +1,9 @@
+"""
+The module implements the ant colony algorithm (Ant Colony Optimization, ACO)
+to solve optimization problems,
+in particular, traveling salesman problems (TSP) and other combinatorial problems.
+"""
+
 import csv
 from dataclasses import dataclass
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -75,7 +81,21 @@ def read_graph_file(filename: str) -> list[list[int]]:
     return graph
 
 
-def initialize_parameters(params):
+def initialize_parameters(params: ACOParameters):
+    """
+    Unpack parameters from ACOParameters object
+
+    Args:
+        params (ACOParameters): Object with parameters
+
+    Returns:
+        tuple with 5 values:
+            graph: list[list[int]]
+            node_num: int
+            visibility: list[list[float]]
+            pheromone: list[list[float]]
+            path: list[int]
+    """
     graph = np.array(params.graph)
     node_num = len(graph)
     visibility = np.divide(1, graph, where=graph != 0)
@@ -90,21 +110,21 @@ def is_safe(v: int, graph: list[list[int]], path: list[int], pos: int) -> bool:
 
     Args:
         v (int): The vertex to be checked for inclusion in the path.
-        graph (list[list[int]]): The adjacency matrix of the graph, where 
+        graph (list[list[int]]): The adjacency matrix of the graph, where
             graph[i][j] != 0 indicates an edge between vertices `i` and `j`, and 0 otherwise.
-        path (list[int]): The current Hamiltonian path under construction, where 
+        path (list[int]): The current Hamiltonian path under construction, where
             each element is a vertex in the order of traversal.
         pos (int): The current position in the path where the vertex `v` is to be placed.
 
     Returns:
-        bool: 
+        bool:
             - True if the vertex `v` can be added to the path at position `pos`.
             - False if adding the vertex violates the conditions of the Hamiltonian path.
 
     Conditions checked:
         1. There must be an edge between the previously added vertex (`path[pos - 1]`) and `v`.
         2. The vertex `v` should not already exist in the current path.
-    
+
     >>> graph = [[0, 1, 0, 1], [1, 0, 1, 1], [0, 1, 0, 1], [1, 1, 1, 0]]
     >>> path = [0, -1, -1, -1]
     >>> is_safe(1, graph, path, 1)
@@ -126,8 +146,8 @@ def is_safe(v: int, graph: list[list[int]], path: list[int], pos: int) -> bool:
 
 def ham_cycle_util(graph: list[list[int]], path: list[int], pos: int) -> bool:
     """
-    This function attempts to add vertices to the path, one by one, while checking 
-    if the conditions of a Hamiltonian cycle are satisfied (i.e., each vertex is 
+    This function attempts to add vertices to the path, one by one, while checking
+    if the conditions of a Hamiltonian cycle are satisfied (i.e., each vertex is
     visited exactly once, and there is an edge between consecutive vertices).
 
     Args:
@@ -136,7 +156,7 @@ def ham_cycle_util(graph: list[list[int]], path: list[int], pos: int) -> bool:
         pos (int): Current position in the path to which the next vertex is to be added.
 
     Returns:
-        bool: 
+        bool:
             - True if a Hamiltonian cycle is found.
             - False if no Hamiltonian cycle exists starting from the current position.
 
@@ -190,14 +210,35 @@ def is_ham_cycle(graph: list[list[int]]) -> bool:
 
 
 def run_iteration(visibility, pheromone, params, node_num, path):
+    """
+    Implements iteration from ant colony optimization. Returns best path.
+
+    Args:
+        graph: list[list[int]]
+        visibility: list[list[float]]
+        pheromone: list[list[float]]
+        params: ACOParameters
+        node_num: int
+        path: list[int]
+
+    Returns:
+        path: list[int] - best finded path
+    """
     for i in range(params.num_ants):
         local_visibility = np.array(visibility)
         for j in range(node_num - 1):
             curr_node = int(path[i, j] - 1)
             local_visibility[:, curr_node] = 0
 
-            pheromone_characteristic = np.power(pheromone[curr_node, :], params.pheromone_factor)
-            visibility_characteristic = np.power(local_visibility[curr_node, :], params.visibility_factor)
+
+            pheromone_normalized = pheromone[curr_node, :] / np.max(pheromone[curr_node, :] + 1e-10)
+            local_visibility_normalized = (local_visibility[curr_node, :]
+                                           / np.max(local_visibility[curr_node, :] + 1e-10))
+
+            pheromone_characteristic = (np.exp(params.pheromone_factor
+                                               * np.log(pheromone_normalized + 1e-10)))
+            visibility_characteristic = np.exp(params.visibility_factor
+                                               * np.log(local_visibility_normalized + 1e-10))
             characteristic = pheromone_characteristic * visibility_characteristic
 
             probabilistic_sum = np.cumsum(characteristic / np.sum(characteristic))
@@ -210,11 +251,36 @@ def run_iteration(visibility, pheromone, params, node_num, path):
 
 
 def worker_run_iteration(args):
+    """
+    Runs iteration, makes for doint it async.
+
+    Args:
+        args: list with args
+
+    Returns:
+        path: best finded path by iteration
+    """
+
     _, visibility, pheromone, params, node_num, path = args
     return run_iteration(visibility, pheromone, params, node_num, path)
 
 
 def update_pheromones(pheromone, path, graph, params, node_num):
+    """
+    Updates pheromones array by path'
+
+    Args:
+        pheromone: list[list[float]]
+        path: list[int]
+        graph: list[list[int]]
+        params: ACOParameters
+        node_num: int
+
+    Returns:
+        pheromone: list[list[float]]
+        tour_total_distance: float
+    """
+
     pheromone = (1 - params.evaporation_rate) * pheromone
     tour_total_distance = np.zeros((params.num_ants, 1))
 
@@ -232,6 +298,17 @@ def update_pheromones(pheromone, path, graph, params, node_num):
 
 
 def find_best_path(path, tour_total_distance):
+    """
+    Finds best path from path array
+
+    Args:
+        path: list[list[int]]
+        tour_total_distance: list[int]
+
+    Returns:
+        best_path: best path from array
+        best_distance: distance of best path
+    """
     dist_min_idx = np.argmin(tour_total_distance)
     best_path = path[dist_min_idx, :]
     best_distance = tour_total_distance[dist_min_idx]
@@ -239,6 +316,17 @@ def find_best_path(path, tour_total_distance):
 
 
 def run_ant_colony_optimization(params):
+    """
+    Start asynchronous ACO algorithm
+
+    Args:
+        params: ACOParameters
+
+    Returns:
+        best_path: best finded path
+        best_distance: distance of best finded path
+    """
+
     graph, node_num, visibility, pheromone, path = initialize_parameters(params)
     best_path = None
     best_distance = float('inf')
@@ -246,14 +334,17 @@ def run_ant_colony_optimization(params):
     with ProcessPoolExecutor(max_workers=4) as executor:
         for _ in range(params.num_iterations // 4):
             futures = [
-                executor.submit(worker_run_iteration, (graph, visibility, pheromone, params, node_num, path))
+                executor.submit(worker_run_iteration,
+                                (graph, visibility, pheromone, params, node_num, path))
                 for _ in range(4)
             ]
 
             for future in as_completed(futures):
                 local_path = future.result()
-                pheromone, tour_total_distance = update_pheromones(pheromone, local_path, graph, params, node_num)
-                current_best_path, current_best_distance = find_best_path(local_path, tour_total_distance)
+                pheromone, tour_total_distance = update_pheromones(pheromone, local_path,
+                                                                   graph, params, node_num)
+                current_best_path, current_best_distance = find_best_path(local_path,
+                                                                          tour_total_distance)
 
                 if current_best_distance < best_distance:
                     best_path, best_distance = current_best_path, current_best_distance
@@ -264,6 +355,9 @@ def run_ant_colony_optimization(params):
 
 
 def launch(config):
+    """
+    Starts the execution of the ant colony algorithm (ACO) based on the given configuration.
+    """
     graph = read_graph_file(config['infile'])
     if not is_ham_cycle(graph):
         return None
