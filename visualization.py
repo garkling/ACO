@@ -8,7 +8,7 @@ import numpy as np
 from main import run_ant_colony_optimization
 
 
-WIDTH, HEIGHT = 800, 600
+WIDTH, HEIGHT = 1200, 800
 
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
