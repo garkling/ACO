@@ -1,6 +1,7 @@
+import csv
 from dataclasses import dataclass
 from concurrent.futures import ProcessPoolExecutor, as_completed
-import csv
+
 import numpy as np
 
 
@@ -13,6 +14,7 @@ class ACOParameters:
     evaporation_rate: float
     pheromone_factor: float
     visibility_factor: float
+
 
 def read_graph_file(filename: str) -> list[list[int]]:
     """
@@ -73,48 +75,6 @@ def read_graph_file(filename: str) -> list[list[int]]:
     return graph
 
 
-def write_graph_file(filename: str, graph: list[list[int]]):
-    with open(filename, 'w', newline='') as f:
-        writer = csv.writer(f)
-        writer.writerow(["Result"])
-        writer.writerow([graph])
-
-
-def is_complete(graph: list[list[int]], start=0) -> bool:
-    """
-    Tests whether the given graph.csv is a complete unweighted graph.csv.
-
-    A complete graph.csv is a graph.csv in which every vertex is connected to all other vertices,
-    except herself. In the adjacency matrix of such a graph.csv:
-    - there must be zeros on the diagonal (no loops)
-    - all other elements must be positive numbers (there are edges between all vertices)
-    - the matrix must be square
-
-    Parameters:
-        graph (list[list[int]]): Graph adjacency matrix
-        start (int): Start vertex (default 0)
-
-    Returns:
-        bool: True if the graph.csv is complete, False otherwise
-    >>> graph = [[0,10,12,11,14],[10,0,13,15,8],[12,13,0,9,14],[11,15,9,0,16],[14,8,14,16,0]]
-    >>> is_complete(graph)
-    True
-    """
-    n = len(graph)
-    if not all(len(row) == n for row in graph):
-        return False
-
-    for i in range(n):
-        for j in range(n):
-            # Diagonal elements check
-            if i == j and graph[i][j] != 0:
-                return False
-            # Non-diagonal elements check
-            if i != j and graph[i][j] <= 0:
-                return False
-
-    return True
-
 def initialize_parameters(params):
     graph = np.array(params.graph)
     node_num = len(graph)
@@ -122,6 +82,7 @@ def initialize_parameters(params):
     pheromone = 0.1 * np.ones((params.num_ants, node_num))
     path = np.ones((params.num_ants, node_num + 1))
     return graph, node_num, visibility, pheromone, path
+
 
 def is_safe(v: int, graph: list[list[int]], path: list[int], pos: int) -> bool:
     """
@@ -228,12 +189,7 @@ def is_ham_cycle(graph: list[list[int]]) -> bool:
     return ham_cycle_util(graph, path, 1)
 
 
-def main(graph_file, start_node, output_file):
-    print(f"Processing graph.csv: {graph_file}")
-    print(f"Starting node: {start_node}")
-    print(f"Output file: {output_file}")
-
-def run_iteration(graph, visibility, pheromone, params, node_num, path):
+def run_iteration(visibility, pheromone, params, node_num, path):
     for i in range(params.num_ants):
         local_visibility = np.array(visibility)
         for j in range(node_num - 1):
@@ -254,8 +210,8 @@ def run_iteration(graph, visibility, pheromone, params, node_num, path):
 
 
 def worker_run_iteration(args):
-    graph, visibility, pheromone, params, node_num, path = args
-    return run_iteration(graph, visibility, pheromone, params, node_num, path)
+    _, visibility, pheromone, params, node_num, path = args
+    return run_iteration(visibility, pheromone, params, node_num, path)
 
 
 def update_pheromones(pheromone, path, graph, params, node_num):
@@ -273,6 +229,7 @@ def update_pheromones(pheromone, path, graph, params, node_num):
             pheromone[int(path[i, j]) - 1, int(path[i, j + 1]) - 1] += dt
 
     return pheromone, tour_total_distance
+
 
 def find_best_path(path, tour_total_distance):
     dist_min_idx = np.argmin(tour_total_distance)
@@ -302,28 +259,27 @@ def run_ant_colony_optimization(params):
                     best_path, best_distance = current_best_path, current_best_distance
 
         best_distance += graph[int(best_path[-2]) - 1, 0]
-    return best_path, int(best_distance)
+
+    return best_path, int(best_distance[0])
+
 
 def launch(config):
     graph = read_graph_file(config['infile'])
-    if not is_complete(graph):
+    if not is_ham_cycle(graph):
         return None
 
-    gen = run_ant_colony_optimization(
-        graph,
-        config.getint('iters'),
-        config.getint('ants'),
-        config.getfloat('evaporation_rate'),
-        config.getfloat('pheromone_factor'),
-        config.getfloat('visibility_factor')
+    params = ACOParameters(
+        graph=graph,
+        num_iterations=config.getint('iters'),
+        num_ants=config.getint('ants'),
+        evaporation_rate=config.getfloat('evaporation_rate'),
+        pheromone_factor=config.getfloat('pheromone_factor'),
+        visibility_factor=config.getfloat('visibility_factor')
     )
-    try:
-        while True:
-            next(gen)
-    except StopIteration as e:
-        path, distance = e.value
 
+    path, distance = run_ant_colony_optimization(params)
     return path, distance
+
 
 if __name__ == "__main__":
     import configparser
